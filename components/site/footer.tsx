@@ -27,6 +27,7 @@ const columns = [
       ["Overview", "/company"],
       ["FAQ's", "/faqs"],
       ["Developers", "/developers"],
+      ["Payment Proof", "/proof"],
       ["Contact", "/contact"],
     ],
   },

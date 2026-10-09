@@ -38,7 +38,10 @@ const menus = [
   {
     label: "Developers",
     href: "/developers",
-    items: [["Technology Stack", "/developers"]],
+    items: [
+      ["Technology Stack", "/developers"],
+      ["Payment Proof", "/proof"],
+    ],
   },
 ];
 
