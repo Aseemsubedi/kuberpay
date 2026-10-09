@@ -123,6 +123,7 @@ export function PaymentProof({ payment }: { payment: Transaction }) {
   const [proofsReady, setProofsReady] = useState(false);
   const [query, setQuery] = useState(payment.id);
   const [amount, setAmount] = useState(String(payment.amount));
+  const [guideStep, setGuideStep] = useState<"connect" | "network" | "confirm" | "done" | null>(null);
 
   const refreshWallet = useCallback(async () => {
     const injected = browserWallet();
@@ -255,14 +256,16 @@ export function PaymentProof({ payment }: { payment: Transaction }) {
       return;
     }
     setBusy("record");
-    setNotice("A wallet window will open. Press Confirm.");
+    setGuideStep("connect");
+    setNotice("MetaMask is opening. If it says Connect, press Connect.");
     setNoticeError(false);
     try {
       await injected.request({ method: "eth_requestAccounts" });
       let provider = new BrowserProvider(injected);
       let network = await provider.getNetwork();
       if (network.chainId !== SEPOLIA_CHAIN_ID) {
-        setNotice("Press Confirm to switch the wallet to the practice network.");
+        setGuideStep("network");
+        setNotice("MetaMask is asking for the practice network. Press Switch.");
         try {
           await injected.request({
             method: "wallet_switchEthereumChain",
@@ -297,15 +300,17 @@ export function PaymentProof({ payment }: { payment: Transaction }) {
       if (!paymentId || !Number.isInteger(dollars) || dollars <= 0) {
         throw new Error("Type a new payment number and a whole amount, like KP10031 and 80.");
       }
-      setNotice("Press Confirm one more time to save the payment.");
+      setGuideStep("confirm");
+      setNotice("MetaMask is asking you to confirm. The small fee is practice money, not the customer's payment. Press Confirm.");
       const tx = await contract.recordProof(paymentId, dollars);
-      setNotice("Waiting. Press Confirm in the wallet window.");
       await tx.wait();
       setQuery(paymentId);
-      setNotice("Saved. Press Check.");
+      setGuideStep("done");
+      setNotice("Saved. Close the wallet window and press Check. Yes means the number is on the record.");
       setNoticeError(false);
       await refreshProofs();
     } catch (error) {
+      setGuideStep(null);
       setNotice(errorText(error));
       setNoticeError(true);
     } finally {
@@ -313,62 +318,141 @@ export function PaymentProof({ payment }: { payment: Transaction }) {
     }
   }
 
+  const walletSteps = [
+    {
+      id: "connect" as const,
+      title: "Connect",
+      text: "MetaMask opens in its own window. Press Connect. This page can then see the account. It cannot spend money by itself.",
+    },
+    {
+      id: "network" as const,
+      title: "Practice network",
+      text: "If it asks to switch, choose Sepolia. That is the practice network. It is not real money.",
+    },
+    {
+      id: "confirm" as const,
+      title: "Confirm",
+      text: "A small practice fee appears. That fee is not the customer's payment. Press Confirm to save the number.",
+    },
+  ];
+
   const needle = query.trim().toLowerCase();
   const matches = proofs.filter((item) => item.paymentId.toLowerCase() === needle);
   const found = matches[0];
 
   return (
-    <section className="glass mx-auto max-w-xl rounded-3xl p-6 sm:p-8">
-      <form
-        className="flex flex-col gap-3 sm:flex-row"
-        onSubmit={(event) => {
-          event.preventDefault();
-          setQuery(query.trim());
-        }}
-      >
-        <label className="sr-only" htmlFor="payment-id">
-          Payment number
+    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+      <section className="glass rounded-3xl p-6 sm:p-8">
+        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-royal">Try this first</p>
+        <h2 className="mt-2 text-2xl font-semibold text-navy">Check a number</h2>
+        <p className="mt-2 text-sm leading-6 text-muted">No wallet is needed. Leave {payment.id} in the box and press Check.</p>
+        <form
+          className="mt-6 flex flex-col gap-3 sm:flex-row"
+          onSubmit={(event) => {
+            event.preventDefault();
+            setQuery(query.trim());
+          }}
+        >
+          <label className="sr-only" htmlFor="payment-id">
+            Payment number
+          </label>
+          <input
+            id="payment-id"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="KP10021"
+            className="w-full rounded-full border border-line bg-[#f5f7fb] px-5 py-3 text-base text-navy outline-none focus:border-royal"
+          />
+          <button type="submit" className="pay-glow grad-btn rounded-full bg-royal px-6 py-3 text-sm font-semibold text-white">
+            Check
+          </button>
+        </form>
+
+        <div className="mt-8 text-center">
+          {!proofsReady ? (
+            <p className="text-sm text-muted">Checking…</p>
+          ) : found ? (
+            <>
+              <p className="text-5xl font-semibold text-mint">Yes</p>
+              <p className="mt-3 text-3xl font-semibold text-navy">{money(Number(found.amount))}</p>
+              <p className="mt-2 text-sm leading-6 text-muted">
+                {found.paymentId} is saved. {matches.length} confirmed. No money moved.
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-5xl font-semibold text-rose-600">No</p>
+              <p className="mt-3 text-sm text-muted">
+                {needle ? `${query.trim()} is not saved yet.` : "Type a payment number."} Try {payment.id}.
+              </p>
+            </>
+          )}
+        </div>
+      </section>
+
+      <section className="glass rounded-3xl p-6 sm:p-8">
+        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-royal">Only for a new number</p>
+        <h2 className="mt-2 text-2xl font-semibold text-navy">When MetaMask opens</h2>
+        <p className="mt-2 text-sm leading-6 text-muted">
+          MetaMask is the business key. It opens in a separate window. Press the button inside that window. Never type a secret phrase on this page.
+        </p>
+        <ol className="mt-5 space-y-3">
+          {walletSteps.map((step, index) => {
+            const active = guideStep === step.id;
+            return (
+              <li
+                key={step.id}
+                className={`rounded-2xl border px-4 py-3 ${active ? "border-royal bg-[#f3f7ff]" : "border-line bg-white"}`}
+              >
+                <p className="text-sm font-semibold text-navy">
+                  <span className="text-royal">{index + 1}.</span> {step.title}
+                  {active ? <span className="ml-2 text-royal">Open now</span> : null}
+                </p>
+                <p className="mt-1 text-sm leading-6 text-muted">{step.text}</p>
+              </li>
+            );
+          })}
+        </ol>
+        <p className="mt-4 text-sm leading-6 text-muted">
+          {wallet
+            ? `Wallet ready · ${shortAddress(wallet.address)} · ${networkLabel(wallet.chainId)}`
+            : hasMetaMask === false
+              ? "This browser has no MetaMask. Check still works. Save needs MetaMask."
+              : hasMetaMask
+                ? "MetaMask is installed. Check still works before you press Save."
+                : "Check works before a wallet is connected."}
+        </p>
+        <label className="mt-4 block text-sm font-semibold text-navy" htmlFor="proof-amount">
+          Amount for a new example
         </label>
         <input
-          id="payment-id"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="KP10021"
-          className="w-full rounded-full border border-line bg-[#f5f7fb] px-5 py-3 text-base text-navy outline-none focus:border-royal"
+          id="proof-amount"
+          value={amount}
+          onChange={(event) => setAmount(event.target.value)}
+          placeholder="80"
+          inputMode="numeric"
+          className="mt-2 w-full rounded-full border border-line bg-[#f5f7fb] px-5 py-3 text-base text-navy outline-none focus:border-royal"
         />
-        <button type="submit" className="pay-glow grad-btn rounded-full bg-royal px-6 py-3 text-sm font-semibold text-white">
-          Check
+        {notice ? <p className={noticeError ? "mt-3 text-sm text-rose-700" : "mt-3 text-sm font-medium text-navy"}>{notice}</p> : null}
+        <button
+          type="button"
+          onClick={() => void recordProof()}
+          disabled={busy !== null}
+          className="mt-4 rounded-full border border-line bg-white px-5 py-2.5 text-sm font-semibold text-navy disabled:cursor-wait disabled:opacity-70"
+        >
+          {busy === "record" ? "Waiting for MetaMask…" : "Save a new number"}
         </button>
-      </form>
+        {guideStep === "done" ? <p className="mt-3 text-sm font-medium text-mint">Saved. Press Check.</p> : null}
+      </section>
 
-      <div className="mt-8 text-center">
-        {!proofsReady ? (
-          <p className="text-sm text-muted">Checking…</p>
-        ) : found ? (
-          <>
-            <p className="text-5xl font-semibold text-mint">Yes</p>
-            <p className="mt-3 text-3xl font-semibold text-navy">{money(Number(found.amount))}</p>
-            <p className="mt-2 text-sm text-muted">
-              Payment {found.paymentId} is saved. {matches.length} confirmed. No money moved. This is practice data.
-            </p>
-          </>
-        ) : (
-          <>
-            <p className="text-5xl font-semibold text-rose-600">No</p>
-            <p className="mt-3 text-sm text-muted">
-              {needle ? `${query.trim()} is not saved.` : "Type a payment number."} Try {payment.id}.
-            </p>
-          </>
-        )}
-      </div>
-
-      <div className="mt-8 border-t border-line pt-6">
-        <p className="text-sm font-semibold text-navy">Recent confirmed</p>
-        <p className="mt-1 text-sm text-muted">Each line was saved and confirmed. KP10000 is on this list.</p>
+      <section className="glass rounded-3xl p-6 sm:p-8 lg:col-span-2">
+        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-royal">Already on the record</p>
+        <h2 className="mt-2 text-2xl font-semibold text-navy">Recent confirmed</h2>
+        <p className="mt-2 text-sm leading-6 text-muted">Each line was saved and confirmed. The same list is what a customer would be checking.</p>
         {!proofsReady ? (
           <p className="mt-4 text-sm text-muted">Checking…</p>
         ) : (
-          <ul className="mt-4 space-y-3">
+          <ul className="mt-5 grid gap-3 md:grid-cols-2">
             {proofs.map((item) => (
               <li key={item.txHash} className="rounded-2xl border border-line bg-white px-4 py-3 text-left">
                 <p className="text-sm font-semibold text-navy">
@@ -388,29 +472,7 @@ export function PaymentProof({ payment }: { payment: Transaction }) {
             ))}
           </ul>
         )}
-      </div>
-
-      <div className="mt-8 border-t border-line pt-6 text-sm leading-6 text-muted">
-        <p className="font-semibold text-navy">Make another example</p>
-        <p className="mt-2">Change the number above to a new one, such as KP10031. Type the amount. Press Save, then Confirm in the wallet. Press Check.</p>
-        <input
-          value={amount}
-          onChange={(event) => setAmount(event.target.value)}
-          placeholder="80"
-          inputMode="numeric"
-          aria-label="Amount"
-          className="mt-4 w-full rounded-full border border-line bg-[#f5f7fb] px-5 py-3 text-base text-navy outline-none focus:border-royal"
-        />
-        {notice ? <p className={noticeError ? "mt-3 text-rose-700" : "mt-3 text-navy"}>{notice}</p> : null}
-        <button
-          type="button"
-          onClick={() => void recordProof()}
-          disabled={busy !== null}
-          className="mt-4 rounded-full border border-line bg-white px-5 py-2.5 text-sm font-semibold text-navy disabled:cursor-wait disabled:opacity-70"
-        >
-          {busy === "record" ? "Waiting for the wallet…" : "Save"}
-        </button>
-      </div>
-    </section>
+      </section>
+    </div>
   );
 }

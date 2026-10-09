@@ -7,6 +7,12 @@ const payment = transactions.find((item) => item.id === "KP10021");
 
 export const metadata = { title: "Payment Proof" };
 
+const ideas = [
+  ["The payment already happened", "Kuber already collected the money. This page does not charge the card again."],
+  ["We save the number once", "After the money arrives, we write the payment number on a public record."],
+  ["Anyone can check it", "A customer, a manager, or an auditor types the number and sees Yes or No. No phone call."],
+];
+
 export default function ProofPage() {
   if (!payment) {
     return (
@@ -19,35 +25,25 @@ export default function ProofPage() {
   return (
     <Article
       eyebrow="For the business"
-      title="Customers can check a payment themselves"
-      text="Today someone calls us to ask if a payment arrived. This adds a public Yes or No for the payment number."
+      title="Anyone can check a payment number"
+      text="After the money arrives, we save that number once. Anyone can type it and see Yes or No. The record does not hold the customer's money."
     >
-      <div className="mx-auto max-w-3xl">
-        <p className="text-center text-sm text-muted">One example, already done</p>
-        <p className="mt-2 text-center text-2xl font-semibold text-navy">
-          {payment.customer} · {money(payment.amount)} · {payment.id}
+      <div className="mx-auto max-w-5xl">
+        <p className="text-center text-sm font-semibold uppercase tracking-[0.16em] text-royal">What we are showing</p>
+        <p className="mx-auto mt-3 max-w-2xl text-center text-lg leading-8 text-navy">
+          {payment.customer} paid {money(payment.amount)}. The number is {payment.id}. That number is already saved, so Check says Yes.
         </p>
+
         <ol className="mt-8 grid gap-4 md:grid-cols-3">
-          <li className="glass rounded-3xl p-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-royal">1. Customer</p>
-            <p className="mt-3 text-lg font-semibold text-navy">Pays</p>
-            <p className="mt-2 text-sm leading-6 text-muted">
-              {payment.customer} pays {money(payment.amount)}. The payment number is {payment.id}.
-            </p>
-          </li>
-          <li className="glass rounded-3xl p-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-royal">2. Kuber</p>
-            <p className="mt-3 text-lg font-semibold text-navy">Saves it once</p>
-            <p className="mt-2 text-sm leading-6 text-muted">After the money arrives, we save that number. We do not save it again.</p>
-          </li>
-          <li className="glass rounded-3xl p-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-royal">3. Anyone</p>
-            <p className="mt-3 text-lg font-semibold text-navy">Checks</p>
-            <p className="mt-2 text-sm leading-6 text-muted">
-              The customer, a manager, or an auditor types {payment.id} and sees Yes. No phone call.
-            </p>
-          </li>
+          {ideas.map(([title, text], index) => (
+            <li key={title} className="glass rounded-3xl p-5">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-royal">{index + 1}</p>
+              <p className="mt-3 text-lg font-semibold text-navy">{title}</p>
+              <p className="mt-2 text-sm leading-6 text-muted">{text}</p>
+            </li>
+          ))}
         </ol>
+
         <div className="mt-10">
           <PaymentProof payment={payment} />
         </div>
