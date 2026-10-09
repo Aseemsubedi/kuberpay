@@ -33,6 +33,7 @@ type ChainProof = {
   paymentId: string;
   amount: string;
   recordedBy: string;
+  recordedAt: number;
   txHash: string;
 };
 
@@ -48,6 +49,19 @@ function networkLabel(chainId: bigint) {
 
 function explorerTx(hash: string) {
   return `https://sepolia.etherscan.io/tx/${hash}`;
+}
+
+function shortAddress(address: string) {
+  return `${address.slice(0, 6)}…${address.slice(-4)}`;
+}
+
+function when(seconds: number) {
+  return new Date(seconds * 1000).toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }
 
 function explorerAddress(address: string) {
@@ -81,7 +95,7 @@ async function loadProofs(): Promise<ChainProof[]> {
   const provider = new JsonRpcProvider(sepoliaRpc);
   const contract = new Contract(paymentProofAddress, paymentProofAbi, provider);
   const latest = await provider.getBlockNumber();
-  const logs = await contract.queryFilter(contract.filters.PaymentRecorded(), Math.max(0, latest - 50000), latest);
+  const logs = await contract.queryFilter(contract.filters.PaymentRecorded(), Math.max(0, latest - 49000), latest);
   return logs
     .map((log) => {
       const parsed = contract.interface.parseLog(log);
@@ -90,6 +104,7 @@ async function loadProofs(): Promise<ChainProof[]> {
         paymentId: String(parsed.args.paymentId),
         amount: parsed.args.amount.toString(),
         recordedBy: String(parsed.args.recordedBy),
+        recordedAt: Number(parsed.args.recordedAt),
         txHash: log.transactionHash,
       };
     })
@@ -299,7 +314,8 @@ export function PaymentProof({ payment }: { payment: Transaction }) {
   }
 
   const needle = query.trim().toLowerCase();
-  const found = proofs.find((item) => item.paymentId.toLowerCase() === needle);
+  const matches = proofs.filter((item) => item.paymentId.toLowerCase() === needle);
+  const found = matches[0];
 
   return (
     <section className="glass mx-auto max-w-xl rounded-3xl p-6 sm:p-8">
@@ -332,10 +348,9 @@ export function PaymentProof({ payment }: { payment: Transaction }) {
           <>
             <p className="text-5xl font-semibold text-mint">Yes</p>
             <p className="mt-3 text-3xl font-semibold text-navy">{money(Number(found.amount))}</p>
-            <p className="mt-2 text-sm text-muted">Payment {found.paymentId} is saved. No money moved. This is practice data.</p>
-            <a href={explorerTx(found.txHash)} target="_blank" rel="noreferrer" className="mt-5 inline-block text-sm font-semibold text-royal">
-              See it
-            </a>
+            <p className="mt-2 text-sm text-muted">
+              Payment {found.paymentId} is saved. {matches.length} confirmed. No money moved. This is practice data.
+            </p>
           </>
         ) : (
           <>
@@ -344,6 +359,34 @@ export function PaymentProof({ payment }: { payment: Transaction }) {
               {needle ? `${query.trim()} is not saved.` : "Type a payment number."} Try {payment.id}.
             </p>
           </>
+        )}
+      </div>
+
+      <div className="mt-8 border-t border-line pt-6">
+        <p className="text-sm font-semibold text-navy">Recent confirmed</p>
+        <p className="mt-1 text-sm text-muted">Each line was saved and confirmed. KP10000 is on this list.</p>
+        {!proofsReady ? (
+          <p className="mt-4 text-sm text-muted">Checking…</p>
+        ) : (
+          <ul className="mt-4 space-y-3">
+            {proofs.map((item) => (
+              <li key={item.txHash} className="rounded-2xl border border-line bg-white px-4 py-3 text-left">
+                <p className="text-sm font-semibold text-navy">
+                  <span className="text-mint">Confirmed</span>
+                  {" · "}
+                  {item.paymentId}
+                  {" · "}
+                  {money(Number(item.amount))}
+                </p>
+                <p className="mt-1 text-xs text-muted">
+                  {when(item.recordedAt)} · {shortAddress(item.recordedBy)}
+                </p>
+                <a href={explorerTx(item.txHash)} target="_blank" rel="noreferrer" className="mt-2 inline-block text-sm font-semibold text-royal">
+                  See it
+                </a>
+              </li>
+            ))}
+          </ul>
         )}
       </div>
 
