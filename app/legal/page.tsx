@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import { StaticRedirect } from "@/components/site/static-redirect";
 
 export default function LegalRedirect() {
-  redirect("/terms");
+  return <StaticRedirect href="/terms" />;
 }

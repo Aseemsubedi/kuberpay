@@ -2,6 +2,8 @@ import { notFound } from "next/navigation";
 import { featureNotes } from "@/lib/content";
 import { Article, Prose } from "@/components/site/article";
 
+export const dynamicParams = false;
+
 export function generateStaticParams() {
   return Object.keys(featureNotes).map((slug) => ({ slug }));
 }

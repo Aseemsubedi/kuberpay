@@ -1,10 +1,17 @@
 import type { NextConfig } from "next";
 
+const githubPages = process.env.GITHUB_PAGES === "true";
+
 const nextConfig: NextConfig = {
   /* config options here */
   allowedDevOrigins: ["*.trycloudflare.com"],
-  cacheComponents: true,
-  partialPrefetching: true,
+  ...(githubPages
+    ? {
+        output: "export" as const,
+        basePath: "/kuberpay",
+        trailingSlash: true,
+      }
+    : {}),
   turbopack: {
     rules: {
       "*.css": {
